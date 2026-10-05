@@ -1,0 +1,784 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Poker Clock</title>
+<style>
+  :root {
+    --bg: #0f172a;
+    --card: #1e293b;
+    --accent: #22c55e;
+    --accent2: #f59e0b;
+    --text: #e2e8f0;
+    --muted: #94a3b8;
+    --danger: #ef4444;
+    --gold: #fbbf24;
+    --silver: #cbd5e1;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 20px;
+  }
+  h1 { font-size: 2rem; margin-bottom: 10px; letter-spacing: 1px; }
+  .status { font-size: 0.85rem; color: var(--muted); margin-bottom: 20px; text-align: center; }
+  .status.ok { color: var(--accent); }
+  .status.err { color: var(--danger); }
+
+  .layout {
+    display: flex; gap: 20px; flex-wrap: wrap;
+    justify-content: center; align-items: flex-start;
+    width: 100%; max-width: 1200px;
+  }
+  .col {
+    display: flex; flex-direction: column; gap: 20px;
+    flex: 1; min-width: 300px;
+  }
+
+  .clock {
+    background: var(--card); border-radius: 20px;
+    padding: 30px; text-align: center;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.5);
+    transition: box-shadow 0.3s;
+  }
+  .clock.finished { box-shadow: 0 0 0 3px var(--danger), 0 10px 40px rgba(239,68,68,0.4); }
+  .level-label {
+    font-size: 1.1rem; color: var(--muted);
+    text-transform: uppercase; letter-spacing: 2px;
+  }
+  .level-number {
+    font-size: 3rem; font-weight: 800;
+    color: var(--accent2); margin: 5px 0;
+  }
+  .timer {
+    font-size: 5rem; font-weight: 800;
+    font-variant-numeric: tabular-nums;
+    margin: 15px 0; color: var(--accent);
+    transition: color 0.2s;
+  }
+  .timer.warning { color: var(--accent2); }
+  .timer.danger { color: var(--danger); animation: pulse 1s infinite; }
+  .timer.timeup { animation: blink 0.6s infinite; }
+  @keyframes pulse { 0%,100%{opacity:1;} 50%{opacity:0.5;} }
+  @keyframes blink { 0%,100%{opacity:1;} 50%{opacity:0.2;} }
+
+  .blinds {
+    display: flex; justify-content: space-around;
+    gap: 15px; margin-top: 15px; flex-wrap: wrap;
+  }
+  .blind-item { flex: 1; min-width: 90px; }
+  .blind-item .label {
+    font-size: 0.75rem; color: var(--muted); text-transform: uppercase;
+  }
+  .blind-item .value { font-size: 1.5rem; font-weight: 700; }
+  .blind-item.rebuy .value { color: var(--accent2); }
+
+  .controls {
+    display: flex; gap: 10px; flex-wrap: wrap;
+    justify-content: center; margin-top: 20px;
+  }
+  button {
+    background: var(--accent); color: #000;
+    border: none; padding: 12px 22px;
+    border-radius: 10px; font-size: 1rem;
+    font-weight: 700; cursor: pointer;
+    transition: transform 0.1s, opacity 0.2s;
+  }
+  button:hover { opacity: 0.85; }
+  button:active { transform: scale(0.96); }
+  button.secondary { background: var(--muted); }
+  button.danger { background: var(--danger); color: #fff; }
+  button.small { padding: 6px 14px; font-size: 0.85rem; }
+
+  table {
+    width: 100%; border-collapse: collapse;
+    background: var(--card); border-radius: 12px;
+    overflow: hidden; font-size: 0.9rem;
+  }
+  th, td { padding: 10px 12px; text-align: left; border-bottom: 1px solid #334155; }
+  th {
+    background: #0f172a; color: var(--muted);
+    text-transform: uppercase; font-size: 0.75rem; letter-spacing: 1px;
+  }
+  tr.current { background: rgba(34,197,94,0.15); }
+  tr.current td { color: var(--accent); font-weight: 700; }
+  #schedule tr { cursor: pointer; }
+  #schedule tr:hover { background: rgba(255,255,255,0.03); }
+
+  .players-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
+  .players-table td.total { color: var(--accent2); font-weight: 700; }
+  .players-table th { font-size: 0.7rem; }
+  .players-table td, .players-table th { padding: 8px 10px; }
+
+  .prizes {
+    background: var(--card); border-radius: 12px;
+    padding: 20px; display: flex; flex-direction: column; gap: 12px;
+  }
+  .prizes h2 {
+    font-size: 1rem; color: var(--muted);
+    text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px;
+  }
+  .prize-row {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 10px 14px; background: #0f172a;
+    border-radius: 10px; font-size: 1.1rem;
+  }
+  .prize-row.bank { border-left: 4px solid var(--accent); }
+  .prize-row.first { border-left: 4px solid var(--gold); }
+  .prize-row.second { border-left: 4px solid var(--silver); }
+  .prize-row .label { color: var(--muted); font-size: 0.9rem; }
+  .prize-row .value { font-weight: 800; font-size: 1.3rem; }
+  .prize-row.bank .value { color: var(--accent); }
+  .prize-row.first .value { color: var(--gold); }
+  .prize-row.second .value { color: var(--silver); }
+
+  .section-title {
+    font-size: 1.1rem; color: var(--muted);
+    text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px;
+    display: flex; justify-content: space-between; align-items: center;
+  }
+
+  .sound-toggle {
+    display: flex; align-items: center; gap: 8px;
+    font-size: 0.85rem; color: var(--muted);
+    margin-top: 10px; justify-content: center;
+  }
+  .sound-toggle input { cursor: pointer; }
+
+  .refresh-row {
+    display: flex; align-items: center; gap: 8px;
+  }
+  .refresh-row .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--muted); display: inline-block;
+  }
+  .refresh-row .dot.ok { background: var(--accent); }
+  .refresh-row .dot.loading { background: var(--accent2); animation: pulse 1s infinite; }
+  .refresh-row .dot.err { background: var(--danger); }
+</style>
+</head>
+<body>
+
+<h1>♠ Poker Clock ♥</h1>
+<div id="status" class="status">Загрузка данных...</div>
+
+<div class="layout">
+
+  <!-- ЛЕВАЯ КОЛОНКА -->
+  <div class="col">
+    <div class="clock" id="clockCard">
+      <div class="level-label">Уровень</div>
+      <div class="level-number" id="levelNum">1</div>
+      <div class="timer" id="timer">00:00</div>
+      <div class="blinds">
+        <div class="blind-item">
+          <div class="label">Малый блайнд</div>
+          <div class="value" id="sb">—</div>
+        </div>
+        <div class="blind-item">
+          <div class="label">Большой блайнд</div>
+          <div class="value" id="bb">—</div>
+        </div>
+        <div class="blind-item rebuy">
+          <div class="label">Ре-бай</div>
+          <div class="value" id="rebuy">—</div>
+        </div>
+      </div>
+      <div class="controls">
+        <button id="btnStart">▶ Старт</button>
+        <button id="btnPause" class="secondary">⏸ Пауза</button>
+        <button id="btnNext" class="secondary">⏭ Следующий</button>
+        <button id="btnPrev" class="secondary">⏮ Предыдущий</button>
+        <button id="btnReset" class="danger">↺ Сброс</button>
+      </div>
+      <label class="sound-toggle">
+        <input type="checkbox" id="soundOn" checked>
+        🔔 Звук при окончании уровня
+      </label>
+    </div>
+
+    <div>
+      <div class="section-title">
+        <span>Расписание уровней</span>
+        <div class="refresh-row">
+          <span id="refreshDot" class="dot"></span>
+          <span id="refreshText" style="font-size:0.75rem;text-transform:none;letter-spacing:0;color:var(--muted);">—</span>
+          <button id="btnRefresh" class="secondary small">🔄 Обновить</button>
+        </div>
+      </div>
+      <table id="schedule">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Уровень</th>
+            <th>SB</th>
+            <th>BB</th>
+            <th>Ре-бай</th>
+            <th>Время</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- ПРАВАЯ КОЛОНКА -->
+  <div class="col">
+    <div class="prizes">
+      <h2>Банк и призы</h2>
+      <div class="prize-row bank">
+        <span class="label">💰 Банк</span>
+        <span class="value" id="bankValue">—</span>
+      </div>
+      <div class="prize-row first">
+        <span class="label">🥇 1 место</span>
+        <span class="value" id="firstPlace">—</span>
+      </div>
+      <div class="prize-row second">
+        <span class="label">🥈 2 место</span>
+        <span class="value" id="secondPlace">—</span>
+      </div>
+    </div>
+
+    <div>
+      <div class="section-title">Игроки</div>
+      <table class="players-table" id="players">
+        <thead>
+          <tr>
+            <th>#</th>
+            <th>Имя</th>
+            <th>Заход</th>
+            <th>Докуп 1</th>
+            <th>Докуп 2</th>
+            <th>Докуп 3</th>
+            <th>Итог</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ============================================================
+// НОВЫЙ URL через GViz — обновляется мгновенно, без кэша
+// ============================================================
+const SHEET_ID  = "1Caj73_3KnonuojRnv8whCz66GBBkkfH_a_lRYLKAjJM";
+const SHEET_GID = "729988291";
+
+// GViz отдаёт данные, минуя кэш. Формат — TSV (разделитель табуляция).
+const TSV_BASE = "https://docs.google.com/spreadsheets/d/" + SHEET_ID +
+                 "/gviz/tq?tqx=out:tsv&gid=" + SHEET_GID;
+
+// Прокси-серверы для обхода CORS. Если один не работает — пробуем следующий.
+const PROXIES = [
+  (url) => "/api/proxy?url=" + encodeURIComponent(url),
+];
+
+const LS_LEVEL = "pokerClock_level";
+const LS_REMAINING = "pokerClock_remaining";
+const LS_RUNNING = "pokerClock_running";
+const LS_SAVED_AT = "pokerClock_savedAt";
+const LS_SOUND = "pokerClock_sound";
+
+const REFRESH_INTERVAL_MS = 5000; // автообновление каждые 5 сек
+
+let levels = [];
+let currentLevel = 0;
+let remaining = 0;
+let running = false;
+let tickInterval = null;
+let soundEnabled = true;
+let audioCtx = null;
+let lastDataHash = "";
+let currentProxyIndex = 0;
+
+const statusEl = document.getElementById("status");
+const levelNumEl = document.getElementById("levelNum");
+const timerEl = document.getElementById("timer");
+const sbEl = document.getElementById("sb");
+const bbEl = document.getElementById("bb");
+const rebuyEl = document.getElementById("rebuy");
+const tbody = document.querySelector("#schedule tbody");
+const clockCard = document.getElementById("clockCard");
+
+const playersTbody = document.querySelector("#players tbody");
+const bankEl = document.getElementById("bankValue");
+const firstEl = document.getElementById("firstPlace");
+const secondEl = document.getElementById("secondPlace");
+
+const soundCheckbox = document.getElementById("soundOn");
+const refreshDot = document.getElementById("refreshDot");
+const refreshText = document.getElementById("refreshText");
+const btnRefresh = document.getElementById("btnRefresh");
+
+// ---------- Звук ----------
+function initAudio() {
+  if (!audioCtx) {
+    try { audioCtx = new (window.AudioContext || window.webkitAudioContext)(); }
+    catch (e) { console.warn("AudioContext не поддерживается", e); }
+  }
+  if (audioCtx && audioCtx.state === "suspended") audioCtx.resume();
+}
+
+function beep(freq = 880, duration = 0.15, delay = 0, volume = 0.25) {
+  if (!soundEnabled || !audioCtx) return;
+  try {
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.connect(gain); gain.connect(audioCtx.destination);
+    osc.type = "sine"; osc.frequency.value = freq;
+    const t0 = audioCtx.currentTime + delay;
+    gain.gain.setValueAtTime(0, t0);
+    gain.gain.linearRampToValueAtTime(volume, t0 + 0.01);
+    gain.gain.exponentialRampToValueAtTime(0.001, t0 + duration);
+    osc.start(t0); osc.stop(t0 + duration + 0.05);
+  } catch (e) {}
+}
+
+function playLevelEndSound() {
+  if (!soundEnabled) return;
+  initAudio();
+  beep(880, 0.18, 0,    0.3);
+  beep(880, 0.18, 0.25, 0.3);
+  beep(1100, 0.45, 0.55, 0.35);
+}
+
+function playTestSound() {
+  initAudio();
+  beep(880, 0.15, 0, 0.3);
+}
+
+// ---------- Хэш данных ----------
+function hashString(str) {
+  let h = 0;
+  for (let i = 0; i < str.length; i++) {
+    h = ((h << 5) - h + str.charCodeAt(i)) | 0;
+  }
+  return String(h);
+}
+
+// ---------- Парсинг TSV (GViz отдаёт табы) ----------
+function parseTSV(text) {
+  const lines = text.trim().split(/\r?\n/);
+  if (lines.length < 2) return { levels: [], players: [], bank: null, first: null, second: null };
+
+  // Первая строка — заголовки. GViz может возвращать заголовки в кавычках — убираем.
+  const headers = lines[0].split("\t").map(h => h.trim().replace(/^"|"$/g, "").toLowerCase());
+
+  const idxLvl = {
+    level: headers.findIndex(h => h.includes("уров")),
+    sb:    headers.findIndex((h, i) => i < 6 && (h === "sb" || h.includes("малый") || h.includes("small"))),
+    bb:    headers.findIndex((h, i) => i < 6 && (h === "bb" || h.includes("большой") || h.includes("big"))),
+    rebuy: headers.findIndex((h, i) => i < 6 && (h.includes("докуп") || h.includes("re-buy") || h.includes("rebuy") || h.includes("ребай") || h.includes("ре-бай"))),
+    time:  headers.findIndex((h, i) => i < 6 && (h.includes("врем") || h.includes("time") || h.includes("мин")))
+  };
+  if (idxLvl.level === -1) idxLvl.level = 0;
+  if (idxLvl.sb === -1)    idxLvl.sb = 1;
+  if (idxLvl.bb === -1)    idxLvl.bb = 2;
+  if (idxLvl.rebuy === -1) idxLvl.rebuy = 3;
+  if (idxLvl.time === -1)  idxLvl.time = 4;
+
+  const idxPly = {
+    num:   headers.findIndex((h, i) => i >= 6 && i <= 8 && (h === "№" || h === "#")),
+    name:  headers.findIndex((h, i) => i >= 6 && (h.includes("имя") || h === "name")),
+    entry: headers.findIndex((h, i) => i >= 6 && (h.includes("заход") || h.includes("вход") || h.includes("entry"))),
+    total: headers.findIndex((h, i) => i >= 6 && (h.includes("итог") || h.includes("total")))
+  };
+
+  const rebuyCols = [];
+  headers.forEach((h, i) => { if (i >= 6 && h.includes("докуп")) rebuyCols.push(i); });
+  while (rebuyCols.length < 3) rebuyCols.push(9 + rebuyCols.length);
+
+  if (idxPly.num === -1)   idxPly.num = 6;
+  if (idxPly.name === -1)  idxPly.name = 7;
+  if (idxPly.entry === -1) idxPly.entry = 8;
+  if (idxPly.total === -1) idxPly.total = 12;
+
+  // Чистим значение от кавычек GViz
+  const clean = (v) => (v || "").trim().replace(/^"|"$/g, "");
+
+  // Уровни
+  const levels = [];
+  for (let i = 1; i < lines.length && i <= 22; i++) {
+    const cols = lines[i].split("\t");
+    if (cols.length < 3) continue;
+    const levelRaw = clean(cols[idxLvl.level]);
+    const sbRaw    = clean(cols[idxLvl.sb]);
+    const bbRaw    = clean(cols[idxLvl.bb]);
+    const rebuyRaw = clean(cols[idxLvl.rebuy]);
+    const timeRaw  = clean(cols[idxLvl.time]);
+    if (!levelRaw && !sbRaw && !bbRaw) continue;
+    if (isNaN(parseInt(sbRaw)) && isNaN(parseInt(bbRaw)) && isNaN(parseInt(levelRaw))) continue;
+    let minutes = parseInt(timeRaw.replace(/[^\d]/g, ""), 10);
+    if (isNaN(minutes) || minutes <= 0) minutes = 20;
+    levels.push({
+      level: levelRaw || (levels.length + 1).toString(),
+      sb: sbRaw || "—", bb: bbRaw || "—",
+      rebuy: rebuyRaw || "—", minutes: minutes
+    });
+  }
+
+  // Игроки
+  const players = [];
+  for (let i = 1; i < lines.length; i++) {
+    const cols = lines[i].split("\t");
+    if (cols.length <= idxPly.name) continue;
+    const numRaw  = clean(cols[idxPly.num]);
+    const nameRaw = clean(cols[idxPly.name]);
+    const entryRaw= clean(cols[idxPly.entry]);
+    const totalRaw= clean(cols[idxPly.total]);
+    if (!nameRaw) continue;
+    if (nameRaw.toLowerCase().includes("имя")) continue;
+    const rebuys = rebuyCols.map(ci => clean(cols[ci]));
+    players.push({
+      num: numRaw || (players.length + 1).toString(),
+      name: nameRaw, entry: entryRaw || "—",
+      rebuys: rebuys, total: totalRaw || "—"
+    });
+  }
+
+  // Банк и призы
+  let bank = null, first = null, second = null;
+  for (let i = 0; i < lines.length; i++) {
+    const cols = lines[i].split("\t");
+    for (let j = 0; j < cols.length; j++) {
+      const cell = clean(cols[j]).toLowerCase();
+      const findNumberRight = (startIdx) => {
+        for (let k = startIdx + 1; k < cols.length; k++) {
+          const v = clean(cols[k]).replace(/[^\d]/g, "");
+          if (v !== "") return v;
+        }
+        return null;
+      };
+      if (cell.includes("банк")) { const v = findNumberRight(j); if (v) bank = v; }
+      if (cell.includes("1 место")) { const v = findNumberRight(j); if (v) first = v; }
+      if (cell.includes("2 место")) { const v = findNumberRight(j); if (v) second = v; }
+    }
+  }
+
+  if (bank === null && players.length) {
+    let sum = 0;
+    players.forEach(p => {
+      const n = parseInt(String(p.total).replace(/[^\d]/g, ""), 10);
+      if (!isNaN(n)) sum += n;
+    });
+    if (sum > 0) bank = sum.toString();
+  }
+
+  return { levels, players, bank, first, second };
+}
+
+// ---------- Сохранение / восстановление ----------
+function saveState() {
+  localStorage.setItem(LS_LEVEL, currentLevel);
+  localStorage.setItem(LS_REMAINING, remaining);
+  localStorage.setItem(LS_RUNNING, running ? "1" : "0");
+  localStorage.setItem(LS_SAVED_AT, Date.now().toString());
+}
+
+function loadState() {
+  const savedLevel = parseInt(localStorage.getItem(LS_LEVEL), 10);
+  const savedRemaining = parseInt(localStorage.getItem(LS_REMAINING), 10);
+  const savedRunning = localStorage.getItem(LS_RUNNING) === "1";
+  const savedAt = parseInt(localStorage.getItem(LS_SAVED_AT), 10);
+  const savedSound = localStorage.getItem(LS_SOUND);
+
+  if (!isNaN(savedLevel)) currentLevel = savedLevel;
+  if (!isNaN(savedRemaining)) {
+    remaining = savedRemaining;
+    if (savedRunning && !isNaN(savedAt)) {
+      const elapsed = Math.floor((Date.now() - savedAt) / 1000);
+      remaining = Math.max(0, remaining - elapsed);
+    }
+  }
+  running = savedRunning;
+  if (savedSound !== null) {
+    soundEnabled = savedSound === "1";
+    soundCheckbox.checked = soundEnabled;
+  }
+}
+
+// ---------- Отрисовка ----------
+function formatTime(sec) {
+  sec = Math.max(0, Math.floor(sec));
+  const m = Math.floor(sec / 60);
+  const s = sec % 60;
+  return String(m).padStart(2, "0") + ":" + String(s).padStart(2, "0");
+}
+
+function renderClock() {
+  if (!levels.length) return;
+  const lvl = levels[currentLevel];
+  if (!lvl) return;
+
+  levelNumEl.textContent = lvl.level;
+  sbEl.textContent = lvl.sb;
+  bbEl.textContent = lvl.bb;
+  rebuyEl.textContent = lvl.rebuy;
+  timerEl.textContent = formatTime(remaining);
+
+  timerEl.classList.remove("warning", "danger", "timeup");
+  clockCard.classList.remove("finished");
+
+  if (remaining <= 0) {
+    timerEl.classList.add("timeup");
+    clockCard.classList.add("finished");
+  } else if (remaining <= 30) {
+    timerEl.classList.add("danger");
+  } else if (remaining <= 60) {
+    timerEl.classList.add("warning");
+  }
+
+  [...tbody.children].forEach((tr, i) => {
+    tr.classList.toggle("current", i === currentLevel);
+  });
+}
+
+function renderTable() {
+  tbody.innerHTML = "";
+  levels.forEach((lvl, i) => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${i + 1}</td>
+      <td>${lvl.level}</td>
+      <td>${lvl.sb}</td>
+      <td>${lvl.bb}</td>
+      <td>${lvl.rebuy}</td>
+      <td>${lvl.minutes} мин</td>
+    `;
+    tr.addEventListener("click", () => goToLevel(i));
+    tbody.appendChild(tr);
+  });
+}
+
+function renderPlayers(players) {
+  playersTbody.innerHTML = "";
+  if (!players.length) {
+    playersTbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--muted);">Нет игроков</td></tr>`;
+    return;
+  }
+  players.forEach(p => {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td>${p.num}</td>
+      <td>${p.name}</td>
+      <td class="num">${p.entry}</td>
+      <td class="num">${p.rebuys[0] || "—"}</td>
+      <td class="num">${p.rebuys[1] || "—"}</td>
+      <td class="num">${p.rebuys[2] || "—"}</td>
+      <td class="num total">${p.total}</td>
+    `;
+    playersTbody.appendChild(tr);
+  });
+}
+
+function renderPrizes(bank, first, second) {
+  const fmt = (v) => v !== null && v !== undefined && v !== "" ? String(v) : "—";
+  bankEl.textContent = fmt(bank);
+  firstEl.textContent = fmt(first);
+  secondEl.textContent = fmt(second);
+}
+
+// ---------- Таймер ----------
+function startTimer() {
+  if (running) return;
+  initAudio();
+  if (remaining <= 0) return;
+  running = true;
+  clockCard.classList.remove("finished");
+  saveState();
+
+  tickInterval = setInterval(() => {
+    remaining--;
+    if (remaining <= 0) {
+      remaining = 0;
+      pauseTimer();
+      renderClock();
+      playLevelEndSound();
+      return;
+    }
+    renderClock();
+    saveState();
+  }, 1000);
+}
+
+function pauseTimer() {
+  running = false;
+  if (tickInterval) { clearInterval(tickInterval); tickInterval = null; }
+  saveState();
+}
+
+function goToLevel(index, keepRunning = false) {
+  if (index < 0 || index >= levels.length) return;
+  currentLevel = index;
+  remaining = levels[index].minutes * 60;
+  clockCard.classList.remove("finished");
+  renderClock();
+  saveState();
+
+  if (keepRunning || running) {
+    if (tickInterval) clearInterval(tickInterval);
+    tickInterval = null;
+    if (running || keepRunning) startTimer();
+  }
+}
+
+function resetClock() {
+  pauseTimer();
+  currentLevel = 0;
+  remaining = levels.length ? levels[0].minutes * 60 : 0;
+  running = false;
+  clockCard.classList.remove("finished");
+  renderClock();
+  saveState();
+}
+
+// ---------- Загрузка с обходом кэша ----------
+function setRefreshStatus(state, text) {
+  refreshDot.className = "dot " + state;
+  refreshText.textContent = text;
+}
+
+async function fetchFreshTSV() {
+  // Cache-buster
+  const bust = "&_=" + Date.now() + "_" + Math.random().toString(36).slice(2);
+  const url = TSV_BASE + bust;
+
+  // Крутим прокси по кругу, начиная с последнего рабочего
+  const order = [];
+  for (let i = 0; i < PROXIES.length; i++) {
+    order.push((currentProxyIndex + i) % PROXIES.length);
+  }
+
+  let lastErr = null;
+  for (const idx of order) {
+    try {
+      const proxyUrl = PROXIES[idx](url);
+      const ctrl = new AbortController();
+      const timeout = setTimeout(() => ctrl.abort(), 8000);
+      const res = await fetch(proxyUrl, {
+        cache: "no-store",
+        signal: ctrl.signal,
+        headers: { "Accept": "text/plain,*/*" }
+      });
+      clearTimeout(timeout);
+      if (!res.ok) throw new Error("HTTP " + res.status);
+      const text = await res.text();
+      if (!text || text.length < 10) throw new Error("Пустой ответ");
+      if (!text.includes("\t")) throw new Error("Не TSV");
+      currentProxyIndex = idx;
+      return text;
+    } catch (e) {
+      lastErr = e;
+      console.warn("Прокси " + idx + " не сработал:", e.message);
+    }
+  }
+
+  // Последняя попытка — напрямую
+  try {
+    const ctrl = new AbortController();
+    const timeout = setTimeout(() => ctrl.abort(), 8000);
+    const res = await fetch(url, { cache: "no-store", signal: ctrl.signal });
+    clearTimeout(timeout);
+    if (res.ok) {
+      const text = await res.text();
+      if (text && text.includes("\t")) return text;
+    }
+  } catch (e) {
+    lastErr = e;
+  }
+
+  throw lastErr || new Error("Не удалось загрузить данные");
+}
+
+async function loadData(manual = false) {
+  try {
+    setRefreshStatus("loading", "…");
+
+    const text = await fetchFreshTSV();
+
+    // Если данные не изменились — не перерисовываем
+    const newHash = hashString(text);
+    if (newHash === lastDataHash && !manual) {
+      setRefreshStatus("ok", "актуально " + new Date().toLocaleTimeString());
+      return;
+    }
+    lastDataHash = newHash;
+
+    const parsed = parseTSV(text);
+    if (!parsed.levels.length) throw new Error("Нет данных по уровням");
+
+    const firstLoad = levels.length === 0;
+    levels = parsed.levels;
+
+    if (currentLevel >= levels.length) currentLevel = levels.length - 1;
+
+    if (firstLoad) {
+      loadState();
+      if (currentLevel >= levels.length) currentLevel = 0;
+      if (isNaN(remaining) || remaining <= 0) {
+        remaining = levels[currentLevel].minutes * 60;
+      }
+      if (running) startTimer();
+    } else {
+      if (currentLevel >= levels.length) {
+        currentLevel = levels.length - 1;
+        remaining = levels[currentLevel].minutes * 60;
+      }
+    }
+
+    renderTable();
+    renderClock();
+    renderPlayers(parsed.players);
+    renderPrizes(parsed.bank, parsed.first, parsed.second);
+
+    const now = new Date().toLocaleTimeString();
+    statusEl.textContent = "✓ Обновлено (" + now + ") — " +
+      levels.length + " ур., " + parsed.players.length + " игроков";
+    statusEl.className = "status ok";
+    setRefreshStatus("ok", now);
+  } catch (e) {
+    console.error(e);
+    statusEl.textContent = "⚠ Ошибка: " + e.message;
+    statusEl.className = "status err";
+    setRefreshStatus("err", "ошибка");
+  }
+}
+
+// ---------- Инициализация ----------
+document.getElementById("btnStart").addEventListener("click", () => {
+  initAudio();
+  startTimer();
+});
+document.getElementById("btnPause").addEventListener("click", () => { pauseTimer(); renderClock(); });
+document.getElementById("btnNext").addEventListener("click", () => goToLevel(currentLevel + 1, running));
+document.getElementById("btnPrev").addEventListener("click", () => goToLevel(currentLevel - 1, running));
+document.getElementById("btnReset").addEventListener("click", resetClock);
+
+btnRefresh.addEventListener("click", () => loadData(true));
+
+soundCheckbox.addEventListener("change", () => {
+  soundEnabled = soundCheckbox.checked;
+  localStorage.setItem(LS_SOUND, soundEnabled ? "1" : "0");
+  if (soundEnabled) playTestSound();
+});
+
+loadData().then(() => {
+  setInterval(loadData, REFRESH_INTERVAL_MS);
+});
+
+window.addEventListener("beforeunload", saveState);
+document.addEventListener("visibilitychange", () => { if (document.hidden) saveState(); });
+</script>
+</body>
+</html>
